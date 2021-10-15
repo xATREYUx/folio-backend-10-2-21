@@ -97,7 +97,7 @@ router.post("/", auth, (req, res) => {
       console.log("---Post Promises initiated---");
 
       await Promise.all(promises);
-      const { title, caption, content } = fields;
+      const { title, caption, content, hiddenTitleFontSize } = fields;
       var newPostData = {
         title,
         caption,
@@ -105,6 +105,7 @@ router.post("/", auth, (req, res) => {
         creator: uid,
         created: admin.firestore.Timestamp.now().seconds,
         postURLs: imageUrls,
+        hiddenTitleFontSize,
       };
       const newPostRes = await Posts.add(newPostData);
       console.log("---newPostRes---", newPostRes.id);
