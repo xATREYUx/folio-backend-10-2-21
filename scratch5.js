@@ -67,8 +67,8 @@ router.post("/", auth, (req, res) => {
         filepath,
         mimetype,
       };
-      const stream = fs.createWriteStream(filepath);
-      stream.on("open", () => file.pipe(stream));
+
+      file.pipe(fs.createWriteStream(filepath));
       //Add the image to the array
       imagesToUpload.push(imageToAdd);
     } catch (err) {
@@ -92,6 +92,7 @@ router.post("/", auth, (req, res) => {
           },
         },
       });
+      console.log("uploadRes", uploadRes);
     };
 
     imagesToUpload.forEach((imageToBeUploaded) => {
