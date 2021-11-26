@@ -5,6 +5,11 @@ const admin = require("firebase-admin");
 const db = admin.firestore();
 const Users = db.collection("users");
 
+router.get("/", (req, res) => {
+  res.json("True");
+  console.log("REQ HEADERS", req.headers);
+});
+
 router.get("/loggedIn", (req, res) => {
   console.log("login validation initiated");
 
@@ -29,6 +34,13 @@ router.get("/loggedIn", (req, res) => {
 router.post("/logout", (req, res) => {
   console.log("Logout Initiated");
   try {
+    // const cookies = req.cookies;
+    // console.log("req.cookies: ", cookies);
+
+    // for (let prop in cookies) {
+    //   // res.cookie(prop, "", { expires: new Date(0) });
+    //   console.log("cleared cookie: ", prop);
+    // }
     return res
       .cookie("__session", "", {
         httpOnly: true,
@@ -75,6 +87,9 @@ router.post("/create", async (req, res) => {
             secure: true,
           })
           .send();
+      })
+      .catch((err) => {
+        console.log("User create err:", err);
       });
   } catch (err) {
     console.log(err);

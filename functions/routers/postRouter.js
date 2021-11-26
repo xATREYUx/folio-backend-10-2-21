@@ -17,7 +17,7 @@ const defaultBucket = admin.storage().bucket();
 
 const { v4: uuidv4 } = require("uuid");
 
-// new
+// create new post
 router.post("/", auth, (req, res) => {
   console.log("---postsrouter post---");
   if (req.method !== "POST") {
@@ -163,8 +163,7 @@ router.get("/", async (req, res) => {
   res.json(allPosts);
 });
 
-// router.get("/user", auth, async (req, res) => {
-
+//get all users posts
 router.get("/user", auth, async (req, res) => {
   console.log("req.body", req.body);
   console.log("req.user", req.user);
@@ -191,4 +190,65 @@ router.get("/user", auth, async (req, res) => {
   }
 });
 
+//Update Post
+router.put("/:id", auth, async (req, res) => {
+  console.log("---updatePost Initiated---");
+  const { uid } = req.user;
+  const { id } = req.params;
+  console.log("---docRef id---", id);
+
+  const busboy = new Busboy({ headers: req.headers });
+  console.log("---postsrouter req.headers---", req.headers);
+
+  let fields = {};
+  let imageFileName = {};
+  let imagesToUpload = [];
+  let imageToAdd = {};
+  let imageUrls = [];
+  let newFileName = "";
+
+  busboy.on("field", (fieldname, fieldvalue) => {
+    console.log("---updatePost busboy.on('field') initiated---");
+    console.log(fieldname);
+    fields[fieldname] = fieldvalue;
+  });
+
+  busboy.on("finish", async () => {
+    console.log("---Edit postsrouter busboy.on('finish') initiated---");
+
+    try {
+      console.log("---Post Edit Promises Initiated---");
+      const { title, caption, content, hiddenTitleFontSize } = fields;
+      var editPostData = {
+        title,
+        caption,
+        content,
+        creator: uid,
+        updated: admin.firestore.Timestamp.now().seconds,
+        // postURLs: imageUrls,
+        hiddenTitleFontSize,
+      };
+      const editPostRes = await Posts.doc(id).update(editPostData);
+      console.log("---editPostRes---", editPostRes.id);
+      editPostRes.id = editPostRes.id;
+
+      res.status(200).send(editPostData);
+    } catch (err) {
+      console.log("updatePost error", err);
+      res.status(500).json(err);
+    }
+  });
+
+  busboy.end(req.rawBody);
+});
+
+router.delete("/:id", auth, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const deleteRes = await Posts.doc(id).delete();
+    res.json(deleteRes);
+  } catch (err) {
+    console.log("err", err);
+  }
+});
 module.exports = router;

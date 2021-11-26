@@ -7,9 +7,9 @@ var cookieParser = require("cookie-parser");
 
 require("dotenv").config();
 
-var serviceAccount = require("../fbServiceAccount.json");
+var serviceAccount = require("./fbServiceAccount.json");
 admin.initializeApp({
-  // credential: admin.credential.cert(serviceAccount),
+  credential: admin.credential.cert(serviceAccount),
   storageBucket: "folio-9-26-21.appspot.com",
 });
 
@@ -19,10 +19,12 @@ if (process.env.NODE_ENV == "development") {
 }
 
 const app = express();
+console.log("Server Initiated");
 
 app.use(
   cors({
-    origin: ["http://localhost:3000", "https://foliofront.web.app"],
+    origin: ["http://localhost:3000", "https://devfolio-front.web.app"],
+    // methods: ["POST", "GET", "PUT", "OPTIONS"],
     credentials: true,
     cacheControl: "private",
     allowedHeaders: ["set-cookie", "content-type", "cookie", "authorization"],
@@ -34,5 +36,6 @@ app.use(cookieParser());
 app.use("/auth", require("./routers/authRouter"));
 app.use("/posts", require("./routers/postRouter"));
 app.use("/users", require("./routers/userRouter"));
+app.use("/contacts", require("./routers/contactRouter"));
 
 exports.app = functions.https.onRequest(app);
