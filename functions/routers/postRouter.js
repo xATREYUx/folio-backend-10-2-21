@@ -2,10 +2,10 @@ const admin = require("firebase-admin");
 const router = require("express").Router();
 const db = admin.firestore();
 const auth = require("../middleware/auth");
-const bucket = admin.storage().bucket();
 
 const Posts = db.collection("posts");
 const Users = db.collection("users");
+db.settings({ ignoreUndefinedProperties: true });
 
 const path = require("path");
 const os = require("os");
@@ -14,6 +14,7 @@ const Busboy = require("busboy");
 var { nanoid } = require("nanoid");
 
 const defaultBucket = admin.storage().bucket();
+// const bucketRef = admin.storage().bucket().ref();
 
 const { v4: uuidv4 } = require("uuid");
 
@@ -34,7 +35,7 @@ router.post("/", auth, (req, res) => {
   let imageFileName = {};
   let imagesToUpload = [];
   let imageToAdd = {};
-  let imageUrls = [];
+  let imageUrls = {};
   let newFileName = "";
 
   busboy.on("field", (fieldname, fieldvalue) => {
@@ -70,7 +71,7 @@ router.post("/", auth, (req, res) => {
       const stream = fs.createWriteStream(filepath);
       stream.on("open", () => file.pipe(stream));
       //Add the image to the array
-      imagesToUpload.push(imageToAdd);
+      imagesToUpload.push({ [fieldname]: imageToAdd });
     } catch (err) {
       console.log("busboy File", err);
     }
@@ -81,13 +82,13 @@ router.post("/", auth, (req, res) => {
 
     let promises = [];
 
-    const uploadFile = async ({ token, imageToBeUploaded }) => {
-      await defaultBucket.upload(imageToBeUploaded.filepath, {
+    const uploadFile = async ({ token, image }) => {
+      await defaultBucket.upload(image.filepath, {
         resumable: false,
-        destination: `postImages/${imageToBeUploaded.newFileName}`,
+        destination: `postImages/${image.newFileName}`,
         metadata: {
           metadata: {
-            contentType: imageToBeUploaded.mimetype,
+            contentType: image.mimetype,
             firebaseStorageDownloadTokens: token,
           },
         },
@@ -95,18 +96,18 @@ router.post("/", auth, (req, res) => {
     };
 
     imagesToUpload.forEach((imageToBeUploaded) => {
+      const key = Object.keys(imageToBeUploaded)[0];
+      const image = imageToBeUploaded[key];
+      console.log("imageToBeUploaded", image);
+
       try {
-        imageUrls.push(
-          `https://firebasestorage.googleapis.com/v0/b/${
-            bucket.name
-          }/o/postImages%2F${encodeURI(
-            imageToBeUploaded.newFileName
-          )}?alt=media`
-        );
+        imageUrls[key] = `https://firebasestorage.googleapis.com/v0/b/${
+          defaultBucket.name
+        }/o/postImages%2F${encodeURI(image.newFileName)}?alt=media`;
 
         let token = uuidv4();
         promises.push(
-          uploadFile({ token, imageToBeUploaded })
+          uploadFile({ token, image })
           // .catch((err) =>
           //   console.log("uploadFile Error", err)
           // )
@@ -117,7 +118,7 @@ router.post("/", auth, (req, res) => {
     });
 
     try {
-      console.log("---Post Promises initiated---");
+      console.log("---Post Promises initiated---", imageUrls);
 
       await Promise.all(promises);
       const { title, caption, content, hiddenTitleFontSize } = fields;
@@ -127,7 +128,8 @@ router.post("/", auth, (req, res) => {
         content,
         creator: uid,
         created: admin.firestore.Timestamp.now().seconds,
-        postURLs: imageUrls,
+        cardImage: imageUrls["cardImage"],
+        postImage: imageUrls["postImage"],
         hiddenTitleFontSize,
       };
       const newPostRes = await Posts.add(newPostData);
@@ -173,6 +175,7 @@ router.get("/user", auth, async (req, res) => {
   try {
     console.log("---getUsersPosts Initiated---");
     await Posts.where("creator", "==", `${uid}`)
+      .orderBy("created", "desc")
       .get()
       .then((usersPosts) => {
         var userObject = [];
@@ -213,25 +216,117 @@ router.put("/:id", auth, async (req, res) => {
     fields[fieldname] = fieldvalue;
   });
 
+  busboy.on("file", (fieldname, file, filename, mimetype) => {
+    console.log("---postsrouter busboy.on('file') initiated---");
+    console.log("file filename", fieldname);
+
+    // if (
+    //   mimetype !== "image/jpeg" ||
+    //   mimetype !== "image/png" ||
+    //   mimetype !== "image/jpg"
+    // ) {
+    //   return res.status(400).json({ error: "Wrong file type submitted!" });
+    // }
+    try {
+      // Getting extension of any image
+      let urlId = nanoid();
+      newFileName =
+        path.parse(filename).name + "-" + urlId + path.parse(filename).ext;
+      console.log("fileName+urlId+extension", newFileName);
+
+      // Creating path
+      const filepath = path.join(os.tmpdir(), newFileName);
+      imageToAdd = {
+        newFileName,
+        filepath,
+        mimetype,
+      };
+      const stream = fs.createWriteStream(filepath);
+      stream.on("open", () => file.pipe(stream));
+      //Add the image to the array
+      imagesToUpload.push({ [fieldname]: imageToAdd });
+    } catch (err) {
+      console.log("busboy File", err);
+    }
+  });
+
   busboy.on("finish", async () => {
     console.log("---Edit postsrouter busboy.on('finish') initiated---");
 
+    let promises = [];
+
+    const uploadFile = async ({ token, image }) => {
+      await defaultBucket.upload(image.filepath, {
+        resumable: false,
+        destination: `postImages/${image.newFileName}`,
+        metadata: {
+          metadata: {
+            contentType: image.mimetype,
+            firebaseStorageDownloadTokens: token,
+          },
+        },
+      });
+    };
+
+    imagesToUpload.forEach((imageToBeUploaded) => {
+      console.log("imageToBeUploaded", imageToBeUploaded);
+      const key = Object.keys(imageToBeUploaded)[0];
+      const image = imageToBeUploaded[key];
+      try {
+        imageUrls[key] = `https://firebasestorage.googleapis.com/v0/b/${
+          defaultBucket.name
+        }/o/postImages%2F${encodeURI(image.newFileName)}?alt=media`;
+
+        let token = uuidv4();
+        promises.push(
+          uploadFile({ token, image })
+          // .catch((err) =>
+          //   console.log("uploadFile Error", err)
+          // )
+        );
+      } catch (err) {
+        console.log("imagesToUpload Error", err);
+      }
+      console.log("imageUrls", imageUrls);
+    });
     try {
       console.log("---Post Edit Promises Initiated---");
-      const { title, caption, content, hiddenTitleFontSize } = fields;
+      const {
+        title,
+        caption,
+        content,
+        hiddenTitleFontSize,
+        imagesToBeDeleted,
+      } = fields;
       var editPostData = {
         title,
         caption,
         content,
         creator: uid,
         updated: admin.firestore.Timestamp.now().seconds,
-        // postURLs: imageUrls,
+        cardImage: imageUrls["cardImage"],
+        postImage: imageUrls["postImage"],
         hiddenTitleFontSize,
       };
       const editPostRes = await Posts.doc(id).update(editPostData);
       console.log("---editPostRes---", editPostRes.id);
       editPostRes.id = editPostRes.id;
-
+      //delete old images
+      console.log("To be deleted", imagesToBeDeleted);
+      const imagesToBeDeletedArray = imagesToBeDeleted.split(",");
+      console.log("imagesToBeDeletedArray", imagesToBeDeletedArray);
+      let toDelete = [];
+      imagesToBeDeletedArray.forEach((img) => {
+        var mySubString = img.substring(
+          img.indexOf("%2F") + 3,
+          img.lastIndexOf("?alt")
+        );
+        var imageRef = defaultBucket.file("postImages/" + mySubString);
+        imageRef.delete().catch((err) => {
+          console.log("oldImageDelete err", err);
+        });
+      });
+      console.log("toDelete", toDelete);
       res.status(200).send(editPostData);
     } catch (err) {
       console.log("updatePost error", err);
