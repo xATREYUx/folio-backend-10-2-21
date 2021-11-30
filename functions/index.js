@@ -24,9 +24,9 @@ console.log("Server Initiated");
 app.use(
   cors({
     origin: ["http://localhost:3000", "https://devfolio-front.web.app"],
-    // methods: ["POST", "GET", "PUT", "OPTIONS"],
+    methods: ["POST", "GET", "PUT", "OPTIONS"],
     credentials: true,
-    cacheControl: "private",
+    cacheControl: ["private"],
     allowedHeaders: ["set-cookie", "content-type", "cookie", "authorization"],
   })
 );
