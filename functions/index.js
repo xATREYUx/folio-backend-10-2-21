@@ -27,7 +27,7 @@ app.use(
     methods: ["POST", "GET", "PUT", "OPTIONS", "DELETE"],
     credentials: true,
     cacheControl: ["private"],
-    allowedHeaders: ["set-cookie", "content-type", "cookie", "authorization"],
+    allowedHeaders: ["content-type", "x-access-token"],
   })
 );
 

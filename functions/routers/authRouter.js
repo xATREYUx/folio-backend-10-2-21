@@ -5,19 +5,19 @@ const admin = require("firebase-admin");
 const db = admin.firestore();
 const Users = db.collection("users");
 
+//check if server connection established
 router.get("/", (req, res) => {
   res.json("True");
   console.log("REQ HEADERS", req.headers);
 });
 
 router.get("/loggedIn", (req, res) => {
-  console.log("login validation initiated");
-
+  console.log("login validation initiated", req.headers["x-access-token"]);
   try {
-    const { token } = req.cookies.__session || "";
-    console.log("req.cookies.__session", token);
+    const token = req.headers["x-access-token"] || "";
+    console.log("x-access-token", token);
     if (!token) {
-      console.log("no token cookie");
+      console.log("no access token present");
       return res.status(200).json(false);
     }
     //if it is there then decrypt it
@@ -34,63 +34,38 @@ router.get("/loggedIn", (req, res) => {
 router.post("/logout", (req, res) => {
   console.log("Logout Initiated");
   try {
-    // const cookies = req.cookies;
-    // console.log("req.cookies: ", cookies);
-
-    // for (let prop in cookies) {
-    //   // res.cookie(prop, "", { expires: new Date(0) });
-    //   console.log("cleared cookie: ", prop);
-    // }
-    return res
-      .cookie("__session", "", {
-        httpOnly: true,
-        sameSite: "none",
-        expires: new Date(0),
-        secure: true,
-      })
-      .send();
+    //logout handled client side
+    return res.json("Logout handled");
   } catch (err) {
     console.log("logout error", err);
   }
 });
 
 router.post("/create", async (req, res) => {
-  console.log("---Create User initiated---");
+  console.log("---Create User initiated---", req.body);
   try {
-    const { token } = req.body;
-    console.log("create user fbToken", token);
-    admin
-      .auth()
-      .verifyIdToken(token)
-      .then((decodedToken) => {
-        const { email, uid } = decodedToken;
-        console.log("Fetched UID: ", uid);
-        console.log("Fetched email: ", email);
-        Users.doc(`${uid}`).set({
-          email: email,
-          posts: [],
-        });
-        console.log("---jwt signing initiated---");
-        let authToken = { token: null };
-        verifiedUserToken = jwt.sign(
-          {
-            user: { email, uid },
-          },
-          process.env.JWT_SECRET
-        );
-        console.log("Token to set as cookie: ", verifiedUserToken);
-        authToken = { token: verifiedUserToken };
-        return res
-          .cookie("__session", authToken, {
-            httpOnly: true,
-            sameSite: "none",
-            secure: true,
-          })
-          .send();
-      })
-      .catch((err) => {
-        console.log("User create err:", err);
-      });
+    const { fbToken } = req.body;
+    console.log("create user fbToken", fbToken);
+    const decodedToken = await admin.auth().verifyIdToken(fbToken);
+    const { email, uid } = decodedToken;
+    console.log("Fetched UID: ", uid);
+    console.log("Fetched email: ", email);
+
+    console.log("---jwt signing initiated---");
+    let authToken = { token: null };
+    verifiedUserToken = jwt.sign(
+      {
+        user: { email, uid },
+      },
+      process.env.JWT_SECRET
+    );
+    console.log("Token to set: ", verifiedUserToken);
+    Users.doc(`${uid}`).set({
+      email: email,
+      posts: [],
+    });
+    authToken = { token: verifiedUserToken };
+    return res.json(authToken);
   } catch (err) {
     console.log(err);
   }
@@ -110,19 +85,16 @@ router.post("/login", async (req, res) => {
       {
         user: { email, user_id },
       },
-      process.env.JWT_SECRET
+      process.env.JWT_SECRET,
+      {
+        expiresIn: 300,
+      }
     );
-    console.log("Token to set as cookie: ", verifiedUserToken);
+    console.log("Token to set: ", verifiedUserToken);
     authToken = { token: verifiedUserToken };
-    return res
-      .cookie("__session", authToken, {
-        httpOnly: true,
-        sameSite: "none",
-        secure: true,
-      })
-      .send();
+    return res.json(authToken);
   } catch (err) {
-    () => {};
+    console.log("login error");
   }
 
   //   authToken = { token: verifiedUserToken };

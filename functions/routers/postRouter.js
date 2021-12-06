@@ -17,14 +17,16 @@ const defaultBucket = admin.storage().bucket();
 // const bucketRef = admin.storage().bucket().ref();
 
 const { v4: uuidv4 } = require("uuid");
+const jwtVerify = require("../middleware/jwtVerify");
 
 // create new post
-router.post("/", auth, (req, res) => {
+router.post("/", jwtVerify, (req, res) => {
   console.log("---postsrouter post---");
   if (req.method !== "POST") {
     console.log("method not allowed");
     return res.status(405).end();
   }
+  console.log("post post req.user", req.user);
 
   const { uid } = req.user;
 
@@ -166,7 +168,7 @@ router.get("/", async (req, res) => {
 });
 
 //get all users posts
-router.get("/user", auth, async (req, res) => {
+router.get("/user", jwtVerify, async (req, res) => {
   console.log("req.body", req.body);
   console.log("req.user", req.user);
 
@@ -194,7 +196,7 @@ router.get("/user", auth, async (req, res) => {
 });
 
 //Update Post
-router.put("/:id", auth, async (req, res) => {
+router.put("/:id", jwtVerify, async (req, res) => {
   console.log("---updatePost Initiated---");
   const { uid } = req.user;
   const { id } = req.params;
@@ -337,7 +339,7 @@ router.put("/:id", auth, async (req, res) => {
   busboy.end(req.rawBody);
 });
 
-router.delete("/:id", auth, async (req, res) => {
+router.delete("/:id", jwtVerify, async (req, res) => {
   const { id } = req.params;
   try {
     const deleteRes = await Posts.doc(id).delete();
